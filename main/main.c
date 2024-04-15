@@ -1,89 +1,49 @@
-/*
- * LED blink with FreeRTOS
- */
 #include <FreeRTOS.h>
 #include <task.h>
 #include <semphr.h>
 #include <queue.h>
 
-#include <string.h>
-
 #include "pico/stdlib.h"
 #include <stdio.h>
+#include "hardware/adc.h"
 
-// #include "hc06.h"
+#include "hardware/gpio.h"
+#include "hardware/i2c.h"
 #include "mpu6050.h"
+#include "pico/stdlib.h"
+
+#include <stdlib.h>
 #include <Fusion.h>
+#include <math.h>  // Inclua esta biblioteca para usar fabs
 
-// roll y
-// yaw x
-
-#define SAMPLE_PERIOD (0.01f) // Definindo o período de amostra
+// batida - Z
+// smash - X
 
 const int MPU_ADDRESS = 0x68;
 const int I2C_SDA_GPIO = 4;
 const int I2C_SCL_GPIO = 5;
+const uint ADC_PIN_X = 26; // GPIO 26, que é o canal ADC 0
+const uint ADC_PIN_Y = 27; // GPIO 27, que é o canal ADC 1
 
-QueueHandle_t xQueueAdc;
+#define SAMPLE_PERIOD (0.01f) // Definindo o período de amostra
 
-typedef struct {
-    int axis;
-    int val;
-} adc_reading_t;
+QueueHandle_t xQueueAdc;  // Agora vai armazenar dados do tipo char
 
-// void hc06_task(void *p) {
-//     uart_init(HC06_UART_ID, HC06_BAUD_RATE);
-//     gpio_set_function(HC06_TX_PIN, GPIO_FUNC_UART);
-//     gpio_set_function(HC06_RX_PIN, GPIO_FUNC_UART);
-//     hc06_init("tennis_legends", "1111");
-
-//     while (true) {
-//         uart_puts(HC06_UART_ID, "OLAAA ");
-//         vTaskDelay(pdMS_TO_TICKS(100));
-//     }
-// }
-
-static void mpu6050_setup() {
-    uint8_t buf[] = {0x6B, 0x00}; // Configuração para tirar o sensor do modo sleep
+static void mpu6050_reset() {
+    uint8_t buf[] = {0x6B, 0x00}; // Sair do modo de dormir
     i2c_write_blocking(i2c_default, MPU_ADDRESS, buf, 2, false);
-
-    // Adicione aqui outras configurações necessárias após o reset, como configuração da escala
-    // de giroscópio e acelerômetro se necessário.
 }
 
-static void mpu6050_read_raw(int16_t accel[3], int16_t gyro[3], int16_t *temp) {
-    // For this particular device, we send the device the register we want to read
-    // first, then subsequently read from the device. The register is auto incrementing
-    // so we don't need to keep sending the register we want, just the first.
-
-    uint8_t buffer[6];
-
-    // Start reading acceleration registers from register 0x3B for 6 bytes
+static void mpu6050_read_raw(int16_t accel[3], int16_t gyro[3]) {
+    uint8_t buffer[14];
     uint8_t val = 0x3B;
-    i2c_write_blocking(i2c_default, MPU_ADDRESS, &val, 1, true); // true to keep master control of bus
-    i2c_read_blocking(i2c_default, MPU_ADDRESS, buffer, 6, false);
+    i2c_write_blocking(i2c_default, MPU_ADDRESS, &val, 1, true);
+    i2c_read_blocking(i2c_default, MPU_ADDRESS, buffer, 14, false);
 
     for (int i = 0; i < 3; i++) {
         accel[i] = (buffer[i * 2] << 8 | buffer[(i * 2) + 1]);
+        gyro[i] = (buffer[(i * 2) + 8] << 8 | buffer[(i * 2) + 9]);
     }
-
-    // Now gyro data from reg 0x43 for 6 bytes
-    // The register is auto incrementing on each read
-    val = 0x43;
-    i2c_write_blocking(i2c_default, MPU_ADDRESS, &val, 1, true);
-    i2c_read_blocking(i2c_default, MPU_ADDRESS, buffer, 6, false);  // False - finished with bus
-
-    for (int i = 0; i < 3; i++) {
-        gyro[i] = (buffer[i * 2] << 8 | buffer[(i * 2) + 1]);;
-    }
-
-    // Now temperature from reg 0x41 for 2 bytes
-    // The register is auto incrementing on each read
-    val = 0x41;
-    i2c_write_blocking(i2c_default, MPU_ADDRESS, &val, 1, true);
-    i2c_read_blocking(i2c_default, MPU_ADDRESS, buffer, 2, false);  // False - finished with bus
-
-    *temp = buffer[0] << 8 | buffer[1];
 }
 
 void mpu6050_task(void *p) {
@@ -93,80 +53,120 @@ void mpu6050_task(void *p) {
     gpio_pull_up(I2C_SDA_GPIO);
     gpio_pull_up(I2C_SCL_GPIO);
 
-    mpu6050_setup(); // Substituído pelo método de setup que inclui tirar do modo sleep
+    mpu6050_reset();
     FusionAhrs ahrs;
     FusionAhrsInitialise(&ahrs);
 
-    int16_t acceleration[3], gyro[3], temp;
+    int16_t acceleration[3], gyro[3];
 
     while(1) {
-        
-     mpu6050_read_raw(acceleration, gyro, &temp);
+        mpu6050_read_raw(acceleration, gyro);
 
         FusionVector gyroscope = {
-        .axis.x = gyro[0] / 131.0f, // Conversão para graus/s
-        .axis.y = gyro[1] / 131.0f,
-        .axis.z = gyro[2] / 131.0f,
+            .axis.x = gyro[0] / 131.0f, // Conversão para graus/s
+            .axis.y = gyro[1] / 131.0f,
+            .axis.z = gyro[2] / 131.0f,
         };
 
         FusionVector accelerometer = {
             .axis.x = acceleration[0] / 16384.0f, // Conversão para g
             .axis.y = acceleration[1] / 16384.0f,
             .axis.z = acceleration[2] / 16384.0f,
-        }; 
+        };
 
-      
         FusionAhrsUpdateNoMagnetometer(&ahrs, gyroscope, accelerometer, SAMPLE_PERIOD);
 
-        const FusionEuler euler = FusionQuaternionToEuler(FusionAhrsGetQuaternion(&ahrs));
+        FusionEuler euler = FusionQuaternionToEuler(FusionAhrsGetQuaternion(&ahrs));
 
-        // printf("Roll %0.1f, Pitch %0.1f, Yaw %0.1f\n", euler.angle.roll, euler.angle.pitch, (euler.angle.yaw));
+        // printf("Accel x: %0.2f g, y: %0.2f g, z: %0.2f g\n", accelerometer.axis.x, accelerometer.axis.y, accelerometer.axis.z);
+        // printf("Gyro x: %0.2f deg/s, y: %0.2f deg/s, z: %0.2f deg/s\n", gyroscope.axis.x, gyroscope.axis.y, gyroscope.axis.z);
 
-        adc_reading_t x_reading = {.axis = 0, .val = -(int)(euler.angle.yaw)};
 
-        xQueueSend(xQueueAdc, &x_reading, portMAX_DELAY);  // Envia a leitura para a fila
-        vTaskDelay(pdMS_TO_TICKS(10));  // Atraso para desacoplamento das tarefas
+        if ((gyroscope.axis.x) < -190.0f) {
+            // printf("SMASH\n");
+            char smash = 'k';  // Enviar 'k' para "SMASH"
+            xQueueSend(xQueueAdc, &smash, portMAX_DELAY);
+        }
+        if (fabs(gyroscope.axis.z) > 225.0f) {
+            // printf("BATIDA\n");
+            char batida = 'l';  // Enviar 'l' para "BATIDA"
+            xQueueSend(xQueueAdc, &batida, portMAX_DELAY);
+        }
 
-        adc_reading_t y_reading = {.axis = 1, .val = -(int)euler.angle.roll};
+        vTaskDelay(pdMS_TO_TICKS(100)); // Simulação do período de amostra
+    }
+}
 
-        xQueueSend(xQueueAdc, &y_reading, portMAX_DELAY);  // Envia a leitura para a fila
-        vTaskDelay(pdMS_TO_TICKS(10));  // Atraso para desacoplamento das tarefas
+void x_task(void *params) {
+    while (1) {
+        adc_select_input(0);  // Seleciona o canal ADC para o eixo X (GP26 = ADC0)
+        int adc_value = adc_read();  // Lê o valor do ADC
+        int processed_value = (adc_value - 2047) / 8;  // Processa o valor para o formato desejado
+        
+        // Lógica para decidir qual tecla pressionar
+        if (processed_value > 30) {
+            char key = 'd';  // Enviar 'd' para a fila
+            xQueueSend(xQueueAdc, &key, portMAX_DELAY);
+        } else if (processed_value < -30) {
+            char key = 'a';  // Enviar 'a' para a fila
+            xQueueSend(xQueueAdc, &key, portMAX_DELAY);
+        }
 
-    vTaskDelay(pdMS_TO_TICKS(10));
+        // printf("X ADC Value: %d\n", processed_value);  // Imprime o valor processado
+        vTaskDelay(pdMS_TO_TICKS(100));  // Adiciona um delay para não sobrecarregar a saída
+    }
+}
+
+
+
+void y_task(void *params) {
+    adc_init(); // Garante que o ADC está inicializado
+    adc_gpio_init(27); // Inicializa o GPIO27 para uso com ADC1
+
+    while (1) {
+        adc_select_input(1);  // Seleciona o canal ADC para o eixo Y (GP27 = ADC1)
+        int adc_value = adc_read();  // Lê o valor do ADC
+        
+        if (adc_value > 30) {
+            char key = 'w';  // Enviar 'w' para a fila se o valor do ADC for maior que 30
+            xQueueSend(xQueueAdc, &key, portMAX_DELAY);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));  // Delay para evitar sobrecarga
     }
 }
 
 
 void uart_task(void *params) {
-    adc_reading_t reading;
-    
+    char command;
+
     while (1) {
-        if (xQueueReceive(xQueueAdc, &reading, portMAX_DELAY)) {
-            write_package(reading);
+        if (xQueueReceive(xQueueAdc, &command, portMAX_DELAY)) {
+            write_package(command);  // Envia o caractere usando write_package
         }
     }
 }
 
-void write_package(adc_reading_t data) {
-    int val = data.val;
-    int msb = val >> 8;
-    int lsb = val & 0xFF ;
-
-    uart_putc_raw(uart0, data.axis);
-    uart_putc_raw(uart0, lsb);
-    uart_putc_raw(uart0, msb);
-    uart_putc_raw(uart0, -1);
+void write_package(char data) {
+    uart_putc_raw(uart0, data);  // Envia o caractere recebido
+    uart_putc_raw(uart0, '\n');  // Nova linha para separar comandos (opcional)
 }
 
 
 int main() {
     stdio_init_all();
+    adc_init(); 
+    adc_gpio_init(ADC_PIN_X);
+    adc_gpio_init(ADC_PIN_Y);
 
-    printf("Start bluetooth task\n");
 
+    xTaskCreate(x_task, "x_task", 256, NULL, 1, NULL);
+    xTaskCreate(y_task, "y_task", 256, NULL, 1, NULL);
     xTaskCreate(mpu6050_task, "mpu6050_Task", 8192, NULL, 1, NULL);
-    xTaskCreate(uart_task, "uart_task", 256, NULL, 1, NULL);
-    // xTaskCreate(hc06_task, "UART_Task 1", 4096, NULL, 1, NULL);
+    xTaskCreate(uart_task, "uart_task", 8192, NULL, 1, NULL);
+
+    xQueueAdc = xQueueCreate(10, sizeof(char));  // Cria a fila com espaço para 10 caracteres
+
 
     vTaskStartScheduler();
 
