@@ -84,12 +84,12 @@ void mpu6050_task(void *p) {
 
         if ((gyroscope.axis.x) < -190.0f) {
             // printf("SMASH\n");
-            char smash = 'k';  // Enviar 'k' para "SMASH"
+            char smash = 'v';  // player 1
             xQueueSend(xQueueAdc, &smash, portMAX_DELAY);
         }
         if (fabs(gyroscope.axis.z) > 225.0f) {
             // printf("BATIDA\n");
-            char batida = 'l';  // Enviar 'l' para "BATIDA"
+            char batida = 'b'; // player 1
             xQueueSend(xQueueAdc, &batida, portMAX_DELAY);
         }
 
@@ -120,14 +120,12 @@ void x_task(void *params) {
 
 
 void y_task(void *params) {
-    adc_init(); // Garante que o ADC está inicializado
-    adc_gpio_init(27); // Inicializa o GPIO27 para uso com ADC1
-
     while (1) {
         adc_select_input(1);  // Seleciona o canal ADC para o eixo Y (GP27 = ADC1)
         int adc_value = adc_read();  // Lê o valor do ADC
+        int processed_value = (adc_value - 2047) / 8;  // Processa o valor para o formato desejado
         
-        if (adc_value > 30) {
+        if (processed_value < -30) {
             char key = 'w';  // Enviar 'w' para a fila se o valor do ADC for maior que 30
             xQueueSend(xQueueAdc, &key, portMAX_DELAY);
         }
@@ -136,6 +134,10 @@ void y_task(void *params) {
     }
 }
 
+void write_package(char data) {
+    uart_putc_raw(uart0, data);  // Envia o caractere recebido
+    uart_putc_raw(uart0, '\n');  // Nova linha para separar comandos (opcional)
+}
 
 void uart_task(void *params) {
     char command;
@@ -145,11 +147,6 @@ void uart_task(void *params) {
             write_package(command);  // Envia o caractere usando write_package
         }
     }
-}
-
-void write_package(char data) {
-    uart_putc_raw(uart0, data);  // Envia o caractere recebido
-    uart_putc_raw(uart0, '\n');  // Nova linha para separar comandos (opcional)
 }
 
 
