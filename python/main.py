@@ -2,7 +2,8 @@ import serial
 import time
 from pynput.keyboard import Key, Controller
 
-ser = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
+# Replace '/dev/ttyACM0' with the correct Bluetooth serial port path
+ser = serial.Serial('/dev/rfcomm0', 9600, timeout=1)
 keyboard = Controller()
 
 try:
@@ -10,8 +11,11 @@ try:
     while True:
         char = ser.readline()
         if char:
-            char = char.decode('ascii').strip()
-            print(f'Pressing {char}')
+            print(f"Raw input: {char}")  # Adicione esta linha para depuração
+            char = char.decode('ascii', errors='ignore').strip()[0]
+            if not char:
+                continue
+            print(f"Pressing {char}")
             if char in ['v', 'b', 'd', 'a', 'w']:
                 keyboard.press(char)
                 time.sleep(0.1)

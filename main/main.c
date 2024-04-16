@@ -15,13 +15,14 @@
 #include <stdlib.h>
 #include <Fusion.h>
 #include <math.h>  // Inclua esta biblioteca para usar fabs
+#include "hc06.h"
 
 // batida - Z
 // smash - X
 
 const int MPU_ADDRESS = 0x68;
-const int I2C_SDA_GPIO = 4;
-const int I2C_SCL_GPIO = 5;
+const int I2C_SDA_GPIO = 12;
+const int I2C_SCL_GPIO = 13;
 const uint ADC_PIN_X = 26; // GPIO 26, que é o canal ADC 0
 const uint ADC_PIN_Y = 27; // GPIO 27, que é o canal ADC 1
 
@@ -84,7 +85,7 @@ void mpu6050_task(void *p) {
 
         if ((gyroscope.axis.x) < -190.0f) {
             // printf("SMASH\n");
-            char smash = 'v';  // player 1
+            char smash = 'v';  // player 1daada
             xQueueSend(xQueueAdc, &smash, portMAX_DELAY);
         }
         if (fabs(gyroscope.axis.z) > 225.0f) {
@@ -148,6 +149,20 @@ void uart_task(void *params) {
         }
     }
 }
+void hc06_task(void *p) {
+    uart_init(HC06_UART_ID, HC06_BAUD_RATE);
+    gpio_set_function(HC06_TX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(HC06_RX_PIN, GPIO_FUNC_UART);
+    hc06_init("tennis_legends", "1111");
+
+    char command;
+    while (true) {
+        if (xQueueReceive(xQueueAdc, &command, portMAX_DELAY)) {
+            char buffer[2] = {command, '\n'};
+            uart_puts(HC06_UART_ID, buffer);  // Sending the command over Bluetooth
+        }
+    }
+}
 
 
 int main() {
@@ -156,11 +171,11 @@ int main() {
     adc_gpio_init(ADC_PIN_X);
     adc_gpio_init(ADC_PIN_Y);
 
-
+    xTaskCreate(hc06_task, "Bluetooth_Task", 9600, NULL, 1, NULL);
     xTaskCreate(x_task, "x_task", 256, NULL, 1, NULL);
     xTaskCreate(y_task, "y_task", 256, NULL, 1, NULL);
     xTaskCreate(mpu6050_task, "mpu6050_Task", 8192, NULL, 1, NULL);
-    xTaskCreate(uart_task, "uart_task", 8192, NULL, 1, NULL);
+    //xTaskCreate(uart_task, "uart_task", 8192, NULL, 1, NULL);
 
     xQueueAdc = xQueueCreate(10, sizeof(char));  // Cria a fila com espaço para 10 caracteres
 

@@ -1,4 +1,5 @@
 add_executable(main
+        hc06.c
         main.c
 )
 
