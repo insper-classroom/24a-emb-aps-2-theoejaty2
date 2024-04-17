@@ -3,6 +3,7 @@ import time
 from pynput.keyboard import Key, Controller
 
 # Replace '/dev/ttyACM0' with the correct Bluetooth serial port path
+# Replace '/dev/ttyACM0' with the correct Bluetooth serial port path
 ser = serial.Serial('/dev/rfcomm0', 9600, timeout=1)
 keyboard = Controller()
 

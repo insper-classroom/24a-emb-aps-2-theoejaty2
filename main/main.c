@@ -25,6 +25,8 @@ const int I2C_SDA_GPIO = 12;
 const int I2C_SCL_GPIO = 13;
 const uint ADC_PIN_X = 26; // GPIO 26, que é o canal ADC 0
 const uint ADC_PIN_Y = 27; // GPIO 27, que é o canal ADC 1
+const int VIBRATOR_PIN = 22; // Pino para o vibrador
+
 
 #define SAMPLE_PERIOD (0.01f) // Definindo o período de amostra
 
@@ -53,6 +55,10 @@ void mpu6050_task(void *p) {
     gpio_set_function(I2C_SCL_GPIO, GPIO_FUNC_I2C);
     gpio_pull_up(I2C_SDA_GPIO);
     gpio_pull_up(I2C_SCL_GPIO);
+
+    // Inicializa o vibrador
+    gpio_init(VIBRATOR_PIN);
+    gpio_set_dir(VIBRATOR_PIN, GPIO_OUT);
 
     mpu6050_reset();
     FusionAhrs ahrs;
@@ -84,14 +90,18 @@ void mpu6050_task(void *p) {
 
 
         if ((gyroscope.axis.x) < -190.0f) {
-            // printf("SMASH\n");
-            char smash = 'v';  // player 1daada
+            char smash = 'v';
             xQueueSend(xQueueAdc, &smash, portMAX_DELAY);
+            gpio_put(VIBRATOR_PIN, 1); // Ativa o vibrador
+            vTaskDelay(pdMS_TO_TICKS(200)); // Vibrador ativo por 200 ms
+            gpio_put(VIBRATOR_PIN, 0); // Desativa o vibrador
         }
         if (fabs(gyroscope.axis.z) > 225.0f) {
-            // printf("BATIDA\n");
-            char batida = 'b'; // player 1
+            char batida = 'b';
             xQueueSend(xQueueAdc, &batida, portMAX_DELAY);
+            gpio_put(VIBRATOR_PIN, 1); // Ativa o vibrador
+            vTaskDelay(pdMS_TO_TICKS(200)); // Vibrador ativo por 200 ms
+            gpio_put(VIBRATOR_PIN, 0); // Desativa o vibrador
         }
 
         vTaskDelay(pdMS_TO_TICKS(50)); // Simulação do período de amostra
