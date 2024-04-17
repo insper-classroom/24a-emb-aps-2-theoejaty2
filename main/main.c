@@ -94,7 +94,7 @@ void mpu6050_task(void *p) {
             xQueueSend(xQueueAdc, &batida, portMAX_DELAY);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(100)); // Simulação do período de amostra
+        vTaskDelay(pdMS_TO_TICKS(50)); // Simulação do período de amostra
     }
 }
 
@@ -112,9 +112,14 @@ void x_task(void *params) {
             char key = 'a';  // Enviar 'a' para a fila
             xQueueSend(xQueueAdc, &key, portMAX_DELAY);
         }
+        else {
+            char key = 'n';  // Enviar 'a' para a fila
+            xQueueSend(xQueueAdc, &key, portMAX_DELAY);
+        }
+
 
         // printf("X ADC Value: %d\n", processed_value);  // Imprime o valor processado
-        vTaskDelay(pdMS_TO_TICKS(100));  // Adiciona um delay para não sobrecarregar a saída
+        vTaskDelay(pdMS_TO_TICKS(50));  // Adiciona um delay para não sobrecarregar a saída
     }
 }
 
@@ -126,12 +131,12 @@ void y_task(void *params) {
         int adc_value = adc_read();  // Lê o valor do ADC
         int processed_value = (adc_value - 2047) / 8;  // Processa o valor para o formato desejado
         
-        if (processed_value < -30) {
+        if (processed_value < -100) {
             char key = 'w';  // Enviar 'w' para a fila se o valor do ADC for maior que 30
             xQueueSend(xQueueAdc, &key, portMAX_DELAY);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(100));  // Delay para evitar sobrecarga
+        vTaskDelay(pdMS_TO_TICKS(50));  // Delay para evitar sobrecarga
     }
 }
 

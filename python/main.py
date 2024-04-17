@@ -16,7 +16,13 @@ try:
             if not char:
                 continue
             print(f"Pressing {char}")
-            if char in ['v', 'b', 'd', 'a', 'w']:
+            if char in ['d', 'a', 'w']:
+                keyboard.press(char)
+            if char == 'n':
+                keyboard.release('d')
+                keyboard.release('a')
+                keyboard.release('w')
+            if char in ['b', 'v']:
                 keyboard.press(char)
                 time.sleep(0.1)
                 keyboard.release(char)
