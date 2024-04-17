@@ -5,6 +5,7 @@ from pynput.keyboard import Key, Controller
 # Replace '/dev/ttyACM0' with the correct Bluetooth serial port path
 # Replace '/dev/ttyACM0' with the correct Bluetooth serial port path
 ser = serial.Serial('/dev/rfcomm0', 9600, timeout=1)
+#ou /dev/ttyACM0
 keyboard = Controller()
 
 try:
@@ -13,7 +14,11 @@ try:
         char = ser.readline()
         if char:
             print(f"Raw input: {char}")  # Adicione esta linha para depuração
-            char = char.decode('ascii', errors='ignore').strip()[0]
+            char = char.decode('ascii', errors='ignore').strip()
+            if char[0] == 's':
+                char = char[1]
+            else:
+                char = char[0]
             if not char:
                 continue
             print(f"Pressing {char}")
