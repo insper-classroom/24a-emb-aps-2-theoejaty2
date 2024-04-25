@@ -26,6 +26,8 @@ const int I2C_SCL_GPIO = 13;
 const uint ADC_PIN_X = 26; // GPIO 26, que é o canal ADC 0
 const uint ADC_PIN_Y = 27; // GPIO 27, que é o canal ADC 1
 const int VIBRATOR_PIN = 22; // Pino para o vibrador
+const int STATE_PIN = 21; // Pino para o vibrador
+const int LED_PIN = 28; // Pino para o vibrador
 
 
 #define SAMPLE_PERIOD (0.01f) // Definindo o período de amostra
@@ -116,10 +118,10 @@ void x_task(void *params) {
         
         // Lógica para decidir qual tecla pressionar
         if (processed_value > 30) {
-            char key = 'd';  // Enviar 'd' para a fila
+            char key = 'a';  // Enviar 'd' para a fila
             xQueueSend(xQueueAdc, &key, portMAX_DELAY);
         } else if (processed_value < -30) {
-            char key = 'a';  // Enviar 'a' para a fila
+            char key = 'd';  // Enviar 'a' para a fila
             xQueueSend(xQueueAdc, &key, portMAX_DELAY);
         }
         else {
@@ -179,13 +181,38 @@ void hc06_task(void *p) {
     }
 }
 
+void state_control_task(void *params) {
+    bool ledState = false;
+
+    while (1) {
+        bool isConnected = gpio_get(STATE_PIN);  // Lê o valor do pino STATE_PIN
+
+        if (!isConnected) {
+            // Quando não estiver conectado, pisca o LED
+            ledState = !ledState;   // Inverte o estado do LED
+            gpio_put(LED_PIN, ledState);  // Atualiza o estado do LED
+            vTaskDelay(pdMS_TO_TICKS(500)); // Tempo do LED ligado/desligado
+        } else {
+            // Quando estiver conectado, mantém o LED aceso
+            gpio_put(LED_PIN, true);
+            vTaskDelay(pdMS_TO_TICKS(100)); // Delay menor para verificar o estado frequentemente
+        }
+    }
+}
+
 
 int main() {
     stdio_init_all();
     adc_init(); 
     adc_gpio_init(ADC_PIN_X);
     adc_gpio_init(ADC_PIN_Y);
+    gpio_init(STATE_PIN);
+    gpio_set_dir(STATE_PIN, GPIO_IN);
 
+    gpio_init(LED_PIN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
+
+    xTaskCreate(state_control_task, "State_Control_Task", 256, NULL, 1, NULL);
     xTaskCreate(hc06_task, "Bluetooth_Task", 9600, NULL, 1, NULL);
     xTaskCreate(x_task, "x_task", 256, NULL, 1, NULL);
     xTaskCreate(y_task, "y_task", 256, NULL, 1, NULL);

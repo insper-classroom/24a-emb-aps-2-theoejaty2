@@ -1,38 +1,40 @@
-# HC06 examplo
+# Projeto
 
-Conectar HC06 no 5V e gnd, pino TX no `GP5` e pino RX no `GP4`. Também é necessário conectar o pino `STATE` do bluetooth no pino `GP3`.
+## Jogo
 
-O projeto está organizado da seguinte maneira:
+O jogo escolhido foi o Tennis Legends, um jogo de ate 2 players onde o melhor tenista ganha.
+link para o jogo: https://www.snokido.com/game/tennis-legends-2016
 
-- `hc06.h`: Arquivo de headfile com configurações do HC06, tais como pinos, uart, ..
-- `hc06.c`: Arquivo `.c` com implementação das funções auxiliares para configurar o módulo bluetooth
-    - `bool hc06_check_connection();`
-    - `bool hc06_set_name(char name[]);`
-    - `bool hc06_set_pin(char pin[]);`
-    - `bool hc06_set_at_mode(int on);`
-    - `bool hc06_init(char name[], char pin[]);`
+## Como ligar o controle
 
-- `main.c` Arquivo principal com inicialização do módulo bluetooth
+Ligue os controles pelo switch localizado no canto esquerdo superior; se o LED comecar a piscar o controle esta ligado.
+Para conectar os controles rode os comandos:
 
-```c
-void hc06_task(void *p) {
-    uart_init(HC06_UART_ID, HC06_BAUD_RATE);
-    gpio_set_function(HC06_TX_PIN, GPIO_FUNC_UART);
-    gpio_set_function(HC06_RX_PIN, GPIO_FUNC_UART);
-    hc06_init("aps2_legal", "1234");
+```sudo rfcomm connect /dev/rfcomm0 98:DA:60:08:7E:8F```
 
-    while (true) {
-        uart_puts(HC06_UART_ID, "OLAAA ");
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-}
-```
+e
 
-Extra ao que foi feito em sala de aula, eu adicionei o `hc06_set_at_mode` que força o módulo bluetooth entrar em modo `AT`, caso contrário ele fica 
-conectado no equipamento e não recebe mais comandos.
+```sudo rfcomm connect /dev/rfcomm1 98:DA:60:08:83:BE```
 
-## No linux
+(em diferentes terminais.)
 
-Para conectar o bluetooth no linux usar os passos descritos no site:
+Se os leds ficarem acesos o bluetooth foi conectado com sucesso.
+Depois rode o python em outro terminal com:
 
-- https://marcqueiroz.wordpress.com/aventuras-com-arduino/configurando-hc-06-bluetooth-module-device-no-ubuntu-12-04/
+```sudo python3 main.py```(apos dar 'cd python' na raiz do projeto)
+
+## Como jogar
+
+para jogar e simples; existem 4 movimentos principais:
+
+A movimentcao: simplesmente mexe o personagem para a esquerda e para direita usando o joystick.
+
+O smash: para fazer isso apenas gire o controle de cima para baixo,
+esse movimento serve para cortadas e saque.
+
+A batida: para fazer isso apenas gire o controle de de um lado para o outro,
+esse movimento serve para bolas fundas e lobbys.
+
+O salta: para isso apenas de um 'flick' no joystick para cima. Combinar o salto com o smash pode ser poderoso.
+
+Ah, e lembre-se que poderes especiais podem aparecer! Tente acerta-los!
